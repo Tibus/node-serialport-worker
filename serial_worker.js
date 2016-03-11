@@ -16,6 +16,13 @@ processModule.on('message',function(msg){
         case "init":
             let path = func_param[0];
             let opts = func_param[1];
+            if(opts.hasOwnProperty("parser")){
+              switch (opts.parser.type) {
+                case "readline":
+                  opts.parser = serial.parsers.readline(opts.parser.value);
+                  break;
+              }
+            }
             let immediate = func_param[2];
             port = new serialport(path,opts,false);
             port.on('data',(data)=>{

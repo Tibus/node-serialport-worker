@@ -4,6 +4,6 @@ const SerialPort = require( 'serialport')
 
 module.exports={
     list : SerialInterface.list,
-    parsers : SerialPort.parsers,
+    kill : SerialInterface.kill,
     SerialPort : SerialInterface
 }

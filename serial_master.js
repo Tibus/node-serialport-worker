@@ -5,24 +5,25 @@ const cp = require('child_process');
 const processModule = require("process");
 const SERIAL_EVENTS = require(__dirname + '/serial_events.js');
 
+var static_serial_worker = cp.fork(__dirname + '/serial_worker.js',{silent:false});
 
-var serial_worker = cp.fork(__dirname + '/serial_worker.js',{silent:false});
-
-
+var workers = [];
 
 class SerialInterface extends events.EventEmitter {
     constructor(path,options,immediate,callback){
         super();
         let $ = this;
         let first = true
+        $.serial_worker = cp.fork(__dirname + '/serial_worker.js',{silent:false});
+        workers.push($.serial_worker);
 
         $.reporter = new events.EventEmitter();
 
-        serial_worker.on('message',(msg)=>{
+        $.serial_worker.on('message',(msg)=>{
             $.reporter.emit(msg.eventType,msg.body);
         });
 
-        serial_worker.send({
+        $.serial_worker.send({
             func: 'init',
             param: [path,options,immediate]
         });
@@ -45,10 +46,17 @@ class SerialInterface extends events.EventEmitter {
         });
     }
 
+    static kill(){
+      for(var i in workers){
+        workers[i].kill();
+      }
+      static_serial_worker.kill();
+    }
+
     static list(callback){
         let $ = this;
-        serial_worker.send({func:"list",param:undefined});
-        serial_worker.once('message',(msg)=>{
+        static_serial_worker.send({func:"list",param:undefined});
+        static_serial_worker.once('message',(msg)=>{
             if(msg.eventType === SERIAL_EVENTS.list_success){
                 if(callback){
                     callback(undefined,msg.body);
@@ -65,7 +73,7 @@ class SerialInterface extends events.EventEmitter {
 
     open(callback){
         let $ = this;
-        serial_worker.send({func:"open",param:undefined});
+        $.serial_worker.send({func:"open",param:undefined});
         $.reporter.once(SERIAL_EVENTS.open_success,()=>{
             if(callback){
                 callback();
@@ -80,7 +88,7 @@ class SerialInterface extends events.EventEmitter {
 
     set(options, callback){
         let $ = this;
-        serial_worker.send({func:"set",param:options});
+        $.serial_worker.send({func:"set",param:options});
         $.reporter.once(SERIAL_EVENTS.set_success,(result)=>{
             if(callback){
                 callback(null, result);
@@ -95,17 +103,17 @@ class SerialInterface extends events.EventEmitter {
 
     pause(){
         //let $ = this;
-        serial_worker.send({func:"pause",parm:undefined});
+        $.serial_worker.send({func:"pause",parm:undefined});
     }
 
     resume(){
         //let $ = this;
-        serial_worker.send({func:"resume",parm:undefined});
+        $.serial_worker.send({func:"resume",parm:undefined});
     }
 
     write(buffer, callback){
         let $ = this;
-        serial_worker.send({func:'write',param:buffer});
+        $.serial_worker.send({func:'write',param:buffer});
         $.reporter.once(SERIAL_EVENTS.write_success,()=>{
             if(callback){
                 callback();
@@ -120,14 +128,14 @@ class SerialInterface extends events.EventEmitter {
 
     isOpen(callback){
         let $ = this;
-        serial_worker.send({func:'isOpen',param:undefined});
+        $.serial_worker.send({func:'isOpen',param:undefined});
         $.reporter.once(SERIAL_EVENTS.is_open,(flag)=>{
             callback(flag)
         });
     }
     close(callback){
         let $ = this;
-        serial_worker.send({func:"close",param:undefined});
+        $.serial_worker.send({func:"close",param:undefined});
         $.reporter.once(SERIAL_EVENTS.close_success,()=>{
             if(callback){
                 callback();
@@ -148,7 +156,11 @@ class SerialInterface extends events.EventEmitter {
 
 
 processModule.on('exit', function() {
-    serial_worker.kill();
+    for(var i in workers){
+      workers[i].kill();
+    }
+    static_serial_worker.kill();
+    //serial_worker.kill();
 });
 
 module.exports = SerialInterface;
